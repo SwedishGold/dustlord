@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Runtime audio/log/state
+logs/
+*.log
+/tmp/
+state/
+*.pid
+*.mp3
+
+# Local secrets/config
+.env
+.env.*
+!.env.example
+config.local.*
+*.local.json
+
+# macOS
+.DS_Store

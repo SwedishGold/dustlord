@@ -1,0 +1,540 @@
+#!/usr/bin/env python3
+"""Dust Lord / Lord Dusk operator CLI.
+
+Roborock body: python-roborock local RPC.
+Persona voice: dustlord_say.py -> local HTTP -> Nest Audio Cast.
+Watcher: launchd label com.ada.dustlord.watch.
+
+This CLI is intentionally boring and explicit so future Hermes sessions can operate
+Dust Lord without reconstructing paths or workflow from conversation history.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Any
+
+HOME = Path.home()
+BASE = Path(os.environ.get("DUSTLORD_HOME", HOME / ".hermes" / "dustlord"))
+SAY = Path(os.environ.get("DUSTLORD_SAY_SCRIPT", BASE / "scripts" / "dustlord_say.py"))
+WATCH = Path(os.environ.get("DUSTLORD_WATCH_SCRIPT", BASE / "scripts" / "dustlord_watch.py"))
+VOICE_LIB = Path(os.environ.get("DUSTLORD_VOICE_LIBRARY", BASE / "data" / "lord-dusk-voice-library.json"))
+OUT_LOG = Path(os.environ.get("DUSTLORD_OUT_LOG", BASE / "logs" / "launchd.out.log"))
+ERR_LOG = Path(os.environ.get("DUSTLORD_ERR_LOG", BASE / "logs" / "launchd.err.log"))
+AUDIO_DIR = Path(os.environ.get("DUSTLORD_AUDIO_DIR", "/tmp/dustlord_audio"))
+RPC_PY = Path(os.environ.get("DUSTLORD_RPC_PY", "/tmp/roborock-arm-venv/bin/python"))
+RPC_SCRIPT = Path(os.environ.get("DUSTLORD_RPC_SCRIPT", "/tmp/roborock_local_rpc.py"))
+CAST_PY = Path(os.environ.get("DUSTLORD_CAST_PY", sys.executable))
+LAUNCHD_LABEL = os.environ.get("DUSTLORD_LAUNCHD_LABEL", "com.ada.dustlord.watch")
+
+RPC_BASE = [str(RPC_PY), str(RPC_SCRIPT), "command"]
+SAY_BASE = [str(CAST_PY), str(SAY)]
+
+STATE_LABELS = {
+    1: "initiating",
+    2: "sleeping",
+    3: "idle",
+    5: "cleaning",
+    6: "returning",
+    8: "charging/docked",
+    10: "paused",
+    11: "spot-cleaning",
+    12: "error",
+    13: "shutting-down",
+    15: "dock-error",
+    16: "manual-mode",
+    17: "charging-error",
+    18: "updating",
+}
+
+
+def run(cmd: list[str], *, timeout: int = 60, check: bool = True) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(cmd, text=True, capture_output=True, timeout=timeout, check=check)
+
+
+def print_json(obj: Any) -> None:
+    print(json.dumps(obj, ensure_ascii=False, indent=2, sort_keys=False))
+
+
+def rpc(cmd: str, params: Any | None = None, timeout: int = 60) -> Any:
+    full = RPC_BASE + [cmd]
+    if params is not None:
+        full += ["--params", json.dumps(params, separators=(",", ":"))]
+    proc = run(full, timeout=timeout)
+    try:
+        return json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        return proc.stdout.strip()
+
+
+def first(payload: Any) -> Any:
+    if isinstance(payload, list) and payload:
+        return payload[0]
+    return payload
+
+
+def status_obj() -> dict[str, Any]:
+    st = first(rpc("get_status"))
+    if not isinstance(st, dict):
+        raise SystemExit(f"Unexpected status payload: {st!r}")
+    return st
+
+
+def summarize_status(st: dict[str, Any]) -> dict[str, Any]:
+    state = int(st.get("state", -1))
+    return {
+        "state": state,
+        "state_label": STATE_LABELS.get(state, "unknown"),
+        "battery": st.get("battery"),
+        "error_code": st.get("error_code"),
+        "in_cleaning": st.get("in_cleaning"),
+        "in_returning": st.get("in_returning"),
+        "clean_time": st.get("clean_time"),
+        "clean_area": st.get("clean_area"),
+        "fan_power": st.get("fan_power"),
+    }
+
+
+def volume_value() -> Any:
+    return first(rpc("get_sound_volume"))
+
+
+def launchd_status() -> dict[str, Any]:
+    proc = run(["launchctl", "list"], timeout=10, check=False)
+    for line in proc.stdout.splitlines():
+        if LAUNCHD_LABEL in line:
+            parts = line.split()
+            return {
+                "running": True,
+                "pid": parts[0] if len(parts) > 0 else None,
+                "last_exit_status": parts[1] if len(parts) > 1 else None,
+                "label": parts[2] if len(parts) > 2 else LAUNCHD_LABEL,
+            }
+    return {"running": False, "label": LAUNCHD_LABEL}
+
+
+def preflight() -> dict[str, Any]:
+    paths = {
+        "rpc_python": RPC_PY.exists(),
+        "rpc_script": RPC_SCRIPT.exists(),
+        "cast_python": CAST_PY.exists(),
+        "say_script": SAY.exists(),
+        "watch_script": WATCH.exists(),
+        "voice_library": VOICE_LIB.exists(),
+        "out_log": OUT_LOG.exists(),
+        "err_log": ERR_LOG.exists(),
+    }
+    st = status_obj()
+    vol = volume_value()
+    daemon = launchd_status()
+    return {
+        "ok": all(paths.values()) and int(st.get("error_code", -1)) == 0 and int(vol) == 0 and daemon.get("running", False),
+        "paths": paths,
+        "status": summarize_status(st),
+        "robot_speaker_volume": vol,
+        "daemon": daemon,
+    }
+
+
+def ensure_muted() -> dict[str, Any]:
+    before = volume_value()
+    changed = False
+    if int(before) != 0:
+        rpc("change_sound_volume", [0])
+        changed = True
+    after = volume_value()
+    return {"ok": int(after) == 0, "before": before, "after": after, "changed": changed}
+
+
+def say(scenario: str, text: str | None = None, dry_run: bool = False) -> str:
+    cmd = SAY_BASE + ["--scenario", scenario]
+    if text:
+        cmd += ["--text", text]
+    if dry_run:
+        cmd += ["--dry-run"]
+    proc = run(cmd, timeout=100)
+    return proc.stdout.strip()
+
+
+def log_line_count(path: Path = OUT_LOG) -> int:
+    try:
+        return len(path.read_text(errors="replace").splitlines())
+    except FileNotFoundError:
+        return 0
+
+
+def read_new_log(mark: int) -> list[str]:
+    try:
+        lines = OUT_LOG.read_text(errors="replace").splitlines()
+    except FileNotFoundError:
+        return []
+    return lines[mark:]
+
+
+def wait_for(pattern: str, mark: int, timeout_s: int, interval: float = 2.0) -> dict[str, Any]:
+    rx = re.compile(pattern)
+    deadline = time.time() + timeout_s
+    last_lines: list[str] = []
+    while time.time() < deadline:
+        last_lines = read_new_log(mark)
+        matches = [line for line in last_lines if rx.search(line)]
+        if matches:
+            return {"ok": True, "matches": matches, "elapsed_s": round(timeout_s - (deadline - time.time()), 1)}
+        time.sleep(interval)
+    return {"ok": False, "matches": [], "tail": last_lines[-80:]}
+
+
+def voice_library() -> dict[str, Any]:
+    return json.loads(VOICE_LIB.read_text())
+
+
+def latest_voice_lines(limit: int = 20) -> list[dict[str, Any]]:
+    try:
+        lines = OUT_LOG.read_text(errors="replace").splitlines()
+    except FileNotFoundError:
+        return []
+    rx = re.compile(r"^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) say output: Lord Dusk says \[(?P<scenario>[^\]]+)\]: (?P<text>.*?) \| (?P<json>\{.*\})$")
+    out: list[dict[str, Any]] = []
+    for line in reversed(lines):
+        m = rx.match(line)
+        if not m:
+            continue
+        item = m.groupdict()
+        try:
+            item["cast_result"] = json.loads(item.pop("json"))
+        except Exception:
+            item["cast_result"] = item.pop("json")
+        out.append(item)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def mission_report() -> dict[str, Any]:
+    st = summarize_status(status_obj())
+    voices = latest_voice_lines(5)
+    area_m2 = None
+    try:
+        area_m2 = round(float(st.get("clean_area") or 0) / 1_000_000, 2)
+    except Exception:
+        pass
+    return {
+        "title": "Dust Lord Mission Report",
+        "body": st,
+        "area_m2": area_m2,
+        "robot_speaker_volume": volume_value(),
+        "daemon": launchd_status(),
+        "latest_voice": voices[0] if voices else None,
+        "recent_voices": voices,
+        "operational": int(st.get("error_code", -1)) == 0 and int(volume_value()) == 0 and launchd_status().get("running", False),
+    }
+
+
+def print_health_pretty(data: dict[str, Any]) -> None:
+    st = data["status"]
+    daemon = data["daemon"]
+    print("Dust Lord Health")
+    print(f"RESULT: {'operational' if data.get('ok') else 'attention needed'}")
+    print(f"BODY: {st.get('state_label')} (state={st.get('state')}), battery={st.get('battery')}%, error={st.get('error_code')}")
+    print(f"VOICE SAFETY: robot speaker volume={data.get('robot_speaker_volume')} (desired 0)")
+    print(f"DAEMON: {'running' if daemon.get('running') else 'stopped'} pid={daemon.get('pid', '-')}")
+    missing = [k for k, v in data.get("paths", {}).items() if not v]
+    print(f"PATHS: {'ok' if not missing else 'missing ' + ', '.join(missing)}")
+
+
+def cmd_health(args: argparse.Namespace) -> int:
+    data = preflight()
+    if getattr(args, "pretty", False):
+        print_health_pretty(data)
+    else:
+        print_json(data)
+    return 0 if data.get("ok") else 2
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    st = status_obj()
+    if args.raw:
+        print_json(st)
+    else:
+        print_json(summarize_status(st))
+    return 0
+
+
+def cmd_volume(args: argparse.Namespace) -> int:
+    print_json({"robot_speaker_volume": volume_value()})
+    return 0
+
+
+def cmd_mute(args: argparse.Namespace) -> int:
+    print_json(ensure_muted())
+    return 0
+
+
+def cmd_say(args: argparse.Namespace) -> int:
+    print(say(args.scenario, args.text, args.dry_run))
+    return 0
+
+
+def cmd_start(args: argparse.Namespace) -> int:
+    mark = log_line_count()
+    result = rpc("app_start")
+    out = {"command": "app_start", "result": result}
+    if args.wait_voice:
+        out["clean_start"] = wait_for(r"say output: Lord Dusk says \[clean_start\]|ERROR say clean_start|skip clean_start", mark, args.timeout)
+    out["status"] = summarize_status(status_obj())
+    print_json(out)
+    return 0 if not args.wait_voice or out["clean_start"].get("ok") else 2
+
+
+def cmd_dock(args: argparse.Namespace) -> int:
+    mark = log_line_count()
+    result = rpc("app_charge")
+    out = {"command": "app_charge", "result": result}
+    if args.wait_voice:
+        out["returning"] = wait_for(r"say output: Lord Dusk says \[returning\]|ERROR say returning|skip returning", mark, args.timeout)
+        out["docked"] = wait_for(r"say output: Lord Dusk says \[docked\]|ERROR say docked|skip docked", mark, args.docked_timeout)
+    out["status"] = summarize_status(status_obj())
+    out["robot_speaker_volume"] = volume_value()
+    if args.wait_voice and not out["returning"].get("ok") and out["docked"].get("ok"):
+        out["warning"] = "returning voice was not observed before docked; this can happen when the robot is already close to the dock"
+    print_json(out)
+    if args.wait_voice and (not out["docked"].get("ok")):
+        return 2
+    return 0
+
+
+def cmd_test_cycle(args: argparse.Namespace) -> int:
+    report: dict[str, Any] = {"preflight": preflight()}
+    if not report["preflight"].get("ok") and not args.force:
+        report["ok"] = False
+        report["error"] = "preflight failed; use --force to run anyway"
+        print_json(report)
+        return 2
+
+    ensure_muted()
+    mark_start = log_line_count()
+    report["start_command"] = rpc("app_start")
+    report["clean_start"] = wait_for(r"say output: Lord Dusk says \[clean_start\]|ERROR say clean_start|skip clean_start", mark_start, args.start_timeout)
+    report["status_after_start"] = summarize_status(status_obj())
+
+    if args.clean_seconds > 0:
+        time.sleep(args.clean_seconds)
+
+    mark_dock = log_line_count()
+    report["dock_command"] = rpc("app_charge")
+    report["returning"] = wait_for(r"say output: Lord Dusk says \[returning\]|ERROR say returning|skip returning", mark_dock, args.returning_timeout)
+    report["docked"] = wait_for(r"say output: Lord Dusk says \[docked\]|ERROR say docked|skip docked", mark_dock, args.docked_timeout)
+    report["final_status"] = summarize_status(status_obj())
+    report["final_volume"] = volume_value()
+    report["daemon"] = launchd_status()
+    report["returning_required"] = False
+    if not report["returning"].get("ok") and report["docked"].get("ok"):
+        report["warning"] = "returning voice was not observed before docked; this can happen when Dust Lord is already close to the dock"
+    report["ok"] = bool(
+        report["clean_start"].get("ok")
+        and report["docked"].get("ok")
+        and int(report["final_status"].get("state", -1)) == 8
+        and int(report["final_status"].get("error_code", -1)) == 0
+        and int(report["final_volume"]) == 0
+        and report["daemon"].get("running", False)
+    )
+    print_json(report)
+    return 0 if report["ok"] else 2
+
+
+def cmd_logs(args: argparse.Namespace) -> int:
+    path = ERR_LOG if args.errors else OUT_LOG
+    try:
+        lines = path.read_text(errors="replace").splitlines()
+    except FileNotFoundError:
+        print(f"missing log: {path}", file=sys.stderr)
+        return 1
+    for line in lines[-args.lines:]:
+        print(line)
+    return 0
+
+
+def cmd_daemon(args: argparse.Namespace) -> int:
+    if args.action == "status":
+        print_json(launchd_status())
+        return 0
+    if args.action == "restart":
+        run(["launchctl", "kickstart", "-k", f"gui/{os.getuid()}/{LAUNCHD_LABEL}"], timeout=20, check=False)
+        time.sleep(2)
+        print_json(launchd_status())
+        return 0
+    print(f"Unsupported daemon action: {args.action}", file=sys.stderr)
+    return 2
+
+
+def cmd_last(args: argparse.Namespace) -> int:
+    voices = latest_voice_lines(args.lines)
+    if args.json:
+        print_json(voices[0] if args.lines == 1 and voices else voices)
+    else:
+        if not voices:
+            print("No Lord Dusk voice lines found.")
+            return 1
+        for v in voices:
+            cast = v.get("cast_result", {})
+            state = cast.get("player_state") if isinstance(cast, dict) else "?"
+            print(f"{v['ts']} [{v['scenario']}] {v['text']}  cast={state}")
+    return 0
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    report = mission_report()
+    if args.json:
+        print_json(report)
+    else:
+        st = report["body"]
+        lv = report.get("latest_voice") or {}
+        print("Dust Lord Mission Report")
+        print(f"Status: {st.get('state_label')} / battery {st.get('battery')}% / error {st.get('error_code')}")
+        print(f"Area: {report.get('area_m2')} m² / clean_time {st.get('clean_time')}s")
+        print(f"Speaker: {report.get('robot_speaker_volume')} / daemon: {'running' if report['daemon'].get('running') else 'stopped'}")
+        if lv:
+            print(f"Latest Lord Dusk: [{lv.get('scenario')}] {lv.get('text')}")
+        print(f"Operational: {report.get('operational')}")
+    return 0 if report.get("operational") else 2
+
+
+def cmd_library(args: argparse.Namespace) -> int:
+    lib = voice_library()
+    scenarios = lib.get("scenarios", {})
+    if args.action == "list":
+        data = {name: len(lines) for name, lines in sorted(scenarios.items())}
+        if args.json:
+            print_json(data)
+        else:
+            for name, count in data.items():
+                print(f"{name}: {count}")
+        return 0
+    if args.action == "validate":
+        problems: list[str] = []
+        if not isinstance(scenarios, dict) or not scenarios:
+            problems.append("missing scenarios object")
+        for name, lines in scenarios.items():
+            if not isinstance(lines, list) or not lines:
+                problems.append(f"{name}: empty/non-list scenario")
+                continue
+            seen = set()
+            for i, line in enumerate(lines, 1):
+                if not isinstance(line, str) or not line.strip():
+                    problems.append(f"{name}[{i}]: empty/non-string line")
+                    continue
+                if line in seen:
+                    problems.append(f"{name}[{i}]: duplicate line")
+                seen.add(line)
+                if re.search(r"[åäöÅÄÖ]|\b(jag|och|inte|tillbaka|städ|smulor)\b", line, re.I):
+                    problems.append(f"{name}[{i}]: possible non-English/Swedish text: {line}")
+                if len(line) > 180:
+                    problems.append(f"{name}[{i}]: long line ({len(line)} chars)")
+        result = {
+            "ok": not problems,
+            "scenario_count": len(scenarios),
+            "line_count": sum(len(v) for v in scenarios.values() if isinstance(v, list)),
+            "problems": problems,
+        }
+        print_json(result) if args.json else print("OK" if result["ok"] else "Problems:\n- " + "\n- ".join(problems))
+        return 0 if result["ok"] else 2
+    print(f"Unsupported library action: {args.action}", file=sys.stderr)
+    return 2
+
+
+def build_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(description="Operate Dust Lord / Lord Dusk Roborock persona system")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    p = sub.add_parser("health", help="Preflight: paths, daemon, status, robot speaker volume")
+    p.add_argument("--pretty", action="store_true", help="Human-readable health summary")
+    p.set_defaults(fn=cmd_health)
+
+    p = sub.add_parser("status", help="Robot body status")
+    p.add_argument("--raw", action="store_true")
+    p.set_defaults(fn=cmd_status)
+
+    p = sub.add_parser("volume", help="Robot speaker volume")
+    p.set_defaults(fn=cmd_volume)
+
+    p = sub.add_parser("mute", help="Force robot speaker volume to 0")
+    p.set_defaults(fn=cmd_mute)
+
+    p = sub.add_parser("say", help="Speak through Lord Dusk TTS/Cast persona only")
+    p.add_argument("--scenario", default="manual_summon")
+    p.add_argument("--text")
+    p.add_argument("--dry-run", action="store_true")
+    p.set_defaults(fn=cmd_say)
+
+    p = sub.add_parser("start", help="Start robot cleaning")
+    p.add_argument("--wait-voice", action="store_true", help="Wait for clean_start Lord Dusk line")
+    p.add_argument("--timeout", type=int, default=75)
+    p.set_defaults(fn=cmd_start)
+
+    p = sub.add_parser("dock", help="Send robot home to dock")
+    p.add_argument("--wait-voice", action="store_true", help="Wait for returning and docked Lord Dusk lines")
+    p.add_argument("--timeout", type=int, default=75)
+    p.add_argument("--docked-timeout", type=int, default=180)
+    p.set_defaults(fn=cmd_dock)
+
+    p = sub.add_parser("test-cycle", help="Full verified cycle: start -> clean_start voice -> dock -> returning/docked voice")
+    p.add_argument("--force", action="store_true", help="Run even if preflight is not fully OK")
+    p.add_argument("--clean-seconds", type=int, default=8)
+    p.add_argument("--start-timeout", type=int, default=90)
+    p.add_argument("--returning-timeout", type=int, default=90)
+    p.add_argument("--docked-timeout", type=int, default=240)
+    p.set_defaults(fn=cmd_test_cycle)
+
+    p = sub.add_parser("logs", help="Tail Dust Lord logs")
+    p.add_argument("-n", "--lines", type=int, default=40)
+    p.add_argument("--errors", action="store_true")
+    p.set_defaults(fn=cmd_logs)
+
+    p = sub.add_parser("daemon", help="Watcher daemon status/restart")
+    p.add_argument("action", choices=["status", "restart"], default="status", nargs="?")
+    p.set_defaults(fn=cmd_daemon)
+
+    p = sub.add_parser("last", help="Show latest Lord Dusk voice lines from watcher log")
+    p.add_argument("-n", "--lines", type=int, default=1)
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(fn=cmd_last)
+
+    p = sub.add_parser("report", help="Human/JSON mission report from current robot state and recent voice lines")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(fn=cmd_report)
+
+    p = sub.add_parser("library", help="Voice-library utilities")
+    p.add_argument("action", choices=["list", "validate"])
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(fn=cmd_library)
+
+    return ap
+
+
+def main() -> int:
+    ap = build_parser()
+    args = ap.parse_args()
+    try:
+        return int(args.fn(args))
+    except subprocess.CalledProcessError as e:
+        print_json({
+            "ok": False,
+            "command": e.cmd,
+            "exit_code": e.returncode,
+            "stdout": e.stdout,
+            "stderr": e.stderr,
+        })
+        return e.returncode or 1
+    except Exception as e:
+        print_json({"ok": False, "error": f"{type(e).__name__}: {e}"})
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

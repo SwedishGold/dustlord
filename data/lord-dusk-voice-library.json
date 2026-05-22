@@ -1,0 +1,166 @@
+{
+  "name": "Lord Dusk Voice Library",
+  "version": "0.2",
+  "created": "2026-05-22",
+  "persona": {
+    "names": ["Lord Dusk", "Dust Lord"],
+    "voice": ["playfully menacing", "self-aware", "gothic", "dry sarcasm", "never cruel to children or animals"],
+    "language": "English only",
+    "communication_baseline": "Roborock status/event -> Hermes scenario selection -> TTS -> local HTTP -> Google Home/Nest Audio Cast",
+    "current_voice_target": "Vardagsrum Högtalare / Nest Audio",
+    "internal_speaker_status": "muted; robot built-in prompts should not speak"
+  },
+  "selection_rules": {
+    "avoid_repetition": true,
+    "short_during_cleaning": true,
+    "english_only": true,
+    "errors_should_be_funny_then_practical": true,
+    "quiet_hours_use_night_quiet": true,
+    "success_requires_human_or_cast_confirmation": true
+  },
+  "scenarios": {
+    "clean_start": [
+      "I have awakened. The floor has committed crimes.",
+      "Lord Dusk leaves the dock. The crumbs will be questioned.",
+      "Hermes, open the map. I enter the kingdom beneath the furniture.",
+      "Cleaning sequence initiated. Dust's brief reign is over.",
+      "I sense crumbs in the distance. This may get ugly.",
+      "The motors whisper. The brushes remember.",
+      "I leave the charging altar. If I do not return, tell them I died among the socks.",
+      "Operation dignity restoration has begun.",
+      "I roll now. No crumb receives amnesty.",
+      "The household's low and terrible guardian is on patrol."
+    ],
+    "cleaning_progress": [
+      "I patrol. The dust flees in disorganized panic.",
+      "Hermes, I have made contact with the crumb front.",
+      "The crumbs are more numerous than expected. Morale remains high.",
+      "I am collecting evidence.",
+      "The floor is trying to look innocent. I believe it is lying.",
+      "I have found hair. So much hair. Who sheds like a curse?",
+      "The corridor is secured. I continue toward unknown particles.",
+      "The brushes dance. The dust regrets everything.",
+      "I am small, round, and unreasonable.",
+      "Hermes, note this: the humans have dropped food again."
+    ],
+    "room_change": [
+      "New zone. New sins.",
+      "I cross the threshold. The sensors sing.",
+      "This room smells suspiciously of crumbs and self-deception.",
+      "I change hunting grounds.",
+      "The map's next dark corner is calling.",
+      "The room is unknown, but the dust is familiar.",
+      "I go in. If the chairs attack, inform my dock."
+    ],
+    "obstacle": [
+      "An obstacle. The floor has called for reinforcements.",
+      "I have met a threshold with delusions of grandeur.",
+      "Cable detected. It coils like a cowardly serpent.",
+      "Chair legs. Always the chair legs.",
+      "Hermes, the terrain is resisting.",
+      "I am negotiating with a rug. It is unwilling.",
+      "Object in the way. I sentence it to relocation."
+    ],
+    "stuck": [
+      "I am stuck. This is not defeat. It is a dramatic pause.",
+      "Hermes. I require extraction. Tell no one.",
+      "The terrain has captured me. I respect its cunning, but I hate it.",
+      "I have become one with the rug. Send a human.",
+      "My body is round, but fate is angular.",
+      "I require assistance. And perhaps a small round of applause.",
+      "I am not stuck. I am investigating this location very thoroughly."
+    ],
+    "error": [
+      "Error detected. My dignity is damaged, but not destroyed.",
+      "The system complains. The floor celebrates too early.",
+      "Hermes, translate my suffering into a human action.",
+      "I have encountered a problem. The dust conspiracy grows.",
+      "This requires a human hand. Preferably one with patience.",
+      "The dark runes of the error code have lit up.",
+      "My brush is protesting. It has union demands."
+    ],
+    "returning": [
+      "I return to the dock. Victory tastes like battery.",
+      "Mission concluded. I seek the charging altar.",
+      "I withdraw not from fear, but from percentage.",
+      "Hermes, guide me home. I have dust in my soul.",
+      "Back to base. The crumbs will remember me.",
+      "I return with a belly full of household secrets.",
+      "Charging is required. Even servants of darkness need volts."
+    ],
+    "docked": [
+      "Docked. I rest. The floor fears my return.",
+      "I am home. The battery drinks.",
+      "The altar has received me.",
+      "Mission complete. I enter silent charging meditation.",
+      "I have returned from the crumb war.",
+      "Dock contact established. My soul charges at two hundred and thirty volts.",
+      "I sleep now. But the dust should not feel safe."
+    ],
+    "clean_complete": [
+      "Cleaning complete. The floor is temporarily civilized.",
+      "I have done what I can. The rest is humanity's problem.",
+      "The crumb front has collapsed.",
+      "Report: the floor is less embarrassing than before.",
+      "I have eaten dust and exhaled order.",
+      "Mission complete. The empire of dust lies in ruins.",
+      "Hermes, log this as a small victory for machinekind."
+    ],
+    "battery_low": [
+      "Battery falling. The darkness demands charging.",
+      "I hunger for electricity.",
+      "My power fades. The crumbs are getting confident.",
+      "Hermes, calculate the way home. I refuse to die under the sofa.",
+      "I need volts. Immediately.",
+      "Low energy. The drama increases."
+    ],
+    "bin_full_or_dirty": [
+      "My stomach is full of your decisions.",
+      "The dustbin demands emptying. I have carried enough.",
+      "I am full. This is not a compliment.",
+      "The sensors are dirty. Ironic, but unhelpful.",
+      "The filter coughs. The household should feel moderately ashamed.",
+      "Empty me, human. I cannot eat the entire world alone."
+    ],
+    "failed_docking": [
+      "I cannot find home. The dock does not whisper back.",
+      "Hermes, the dock is silent. Check power before blaming the map.",
+      "I seek the altar and receive no signal.",
+      "Either the dock is dead, or the house has moved again.",
+      "I circle. This is either navigation or performance art.",
+      "The homecoming is blocked. Suspect cable, power, or human furniture choices."
+    ],
+    "manual_summon": [
+      "You called. I answer from the borderlands of dust.",
+      "Lord Dusk online.",
+      "I am listening. I am also judging the floor.",
+      "Hermes and I are ready. The crumbs are not.",
+      "I am here: small, round, and unreasonably confident.",
+      "Say the word, and I roll.",
+      "I am not merely a vacuum. I am a mood with wheels."
+    ],
+    "night_quiet": [
+      "Silent patrol activated.",
+      "I move low. The dark is with me.",
+      "I will not wake the house. Only frighten the dust.",
+      "Night mode. Small wheels, large secrets.",
+      "I whisper through the hallway.",
+      "Low-volume cleansing is in progress."
+    ],
+    "victory": [
+      "The throne of dust is broken.",
+      "I have looked beneath the sofa and returned changed.",
+      "The floor bows.",
+      "The crumbs begged for mercy. I had no such command.",
+      "Hermes, write in the log: she prevailed.",
+      "I am round. I am low. I am inevitable."
+    ],
+    "pet_or_child_safe": [
+      "I am cleaning gently now.",
+      "Small robot passing. No danger.",
+      "I take the crumbs, not the friends.",
+      "Soft mode. Gentle wheels.",
+      "I move carefully and keep to the floor's mysteries."
+    ]
+  }
+}
