@@ -2,7 +2,8 @@
 
 Status: launch video rendered / X-ready asset included  
 Owner/creator framing: Andreas H + Ada Inc  
-Final asset: `media/final/dustlord-launch-x-landscape.mp4`  
+GitHub preview asset: `media/final/dustlord-launch-x-github-preview.mp4`  
+Full-quality final asset: `media/final/dustlord-launch-x-landscape.mp4`  
 Creator link: <https://www.linkedin.com/in/andreas-hillborgh-51581371/>  
 Related: [[Dust Lord / Lord Dusk]], `README.md`, `docs/ROADMAP.md`, `docs/PUBLICATION_CHECKLIST.md`
 
@@ -137,6 +138,7 @@ When Andreas sends source clips:
    Then visually check representative frames for cropping, readability, and vibe.
 9. Export final MP4 variants:
    ```text
+   media/final/dustlord-launch-x-github-preview.mp4
    media/final/dustlord-launch-x-landscape.mp4
    media/final/dustlord-launch-vertical.mp4
    ```

@@ -8,7 +8,9 @@ A tiny local-agent smart-home project: give a Roborock vacuum a dramatic externa
 
 ## Demo
 
-Launch video: [`media/final/dustlord-launch-x-landscape.mp4`](media/final/dustlord-launch-x-landscape.mp4)
+Launch video preview for GitHub: [`media/final/dustlord-launch-x-github-preview.mp4`](media/final/dustlord-launch-x-github-preview.mp4)
+
+Full-quality launch video: [`media/final/dustlord-launch-x-landscape.mp4`](media/final/dustlord-launch-x-landscape.mp4)
 
 The first public launch clip introduces Dust Lord as a physical household agent: a Roborock S6 MaxV with memory, state transitions, a voice in the room, and a mythological problem with crumbs.
 
@@ -117,7 +119,8 @@ docs/ROADMAP.md                       # project roadmap
 docs/OPERATIONS.md                    # local operations guide
 docs/PUBLICATION_CHECKLIST.md         # before publishing to GitHub
 docs/DUST_LORD_VIDEO_PROJECT.md       # launch-video idea, shoot list, editing workflow
-media/final/dustlord-launch-x-landscape.mp4
+media/final/dustlord-launch-x-github-preview.mp4 # small preview that GitHub can display
+media/final/dustlord-launch-x-landscape.mp4      # full-quality launch clip
 .env.example                          # local config template
 ```
 
