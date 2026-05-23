@@ -12,6 +12,8 @@ Launch video preview for GitHub: [`media/final/dustlord-launch-x-github-preview.
 
 Full-quality launch video: [`media/final/dustlord-launch-x-landscape.mp4`](media/final/dustlord-launch-x-landscape.mp4)
 
+Downloadable release assets: <https://github.com/SwedishGold/dustlord/releases/tag/v0.1.0>
+
 The first public launch clip introduces Dust Lord as a physical household agent: a Roborock S6 MaxV with memory, state transitions, a voice in the room, and a mythological problem with crumbs.
 
 ## Creator / links
