@@ -17,6 +17,8 @@ import time
 import uuid
 from pathlib import Path
 
+from dustlord_behavior import decide as behavior_decide, remember_manual_line
+
 DUSTLORD_HOME = Path(os.environ.get('DUSTLORD_HOME', Path.home() / '.hermes' / 'dustlord'))
 LIB = Path(os.environ.get('DUSTLORD_VOICE_LIBRARY', DUSTLORD_HOME / 'data' / 'lord-dusk-voice-library.json'))
 AUDIO_DIR = Path(os.environ.get('DUSTLORD_AUDIO_DIR', '/tmp/dustlord_audio'))
@@ -76,21 +78,10 @@ def choose_line(scenario):
     for line in lines:
         validate_english(line)
 
-    state = load_state()
-    last = state.get('last_by_scenario', {}).get(scenario)
-    recent = set(state.get('recent_lines', [])[-10:])
-    candidates = [x for x in lines if x != last and x not in recent]
-    if not candidates:
-        candidates = [x for x in lines if x != last] or lines
-    line = random.choice(candidates)
-
-    state.setdefault('last_by_scenario', {})[scenario] = line
-    recent_lines = state.get('recent_lines', [])
-    recent_lines.append(line)
-    state['recent_lines'] = recent_lines[-30:]
-    state['last'] = {'scenario': scenario, 'line': line, 'ts': time.time()}
-    save_state(state)
-    return line
+    decision = behavior_decide(scenario, lines)
+    if not decision.get('speak'):
+        return None, decision
+    return decision['line'], decision
 
 
 def make_tts(text, voice=DEFAULT_VOICE):
@@ -180,9 +171,17 @@ def main():
         print(json.dumps({'ok': True, 'http_pid': pid, 'port': HTTP_PORT, 'dir': str(AUDIO_DIR)}))
         return
 
-    text = args.text or choose_line(args.scenario)
+    if args.text:
+        text = args.text
+        decision = remember_manual_line(args.scenario, text)
+    else:
+        text, decision = choose_line(args.scenario)
+    if not text:
+        print(f"Lord Dusk remains silent [{args.scenario}]: {decision.get('reason')} mood={decision.get('mood')}", flush=True)
+        return
     validate_english(text)
-    print(f'Lord Dusk says [{args.scenario}]: {text}', flush=True)
+    meta = f" mood={decision.get('mood')} rarity={decision.get('rarity')}" if decision else ""
+    print(f'Lord Dusk says [{args.scenario}]: {text}{meta}', flush=True)
     if args.dry_run:
         return
     path = make_tts(text, voice=args.voice)

@@ -6,12 +6,24 @@ A tiny local-agent smart-home project: give a Roborock vacuum a dramatic externa
 
 > I am small, round, and unreasonable.
 
+## Demo
+
+Launch video: [`media/final/dustlord-launch-x-landscape.mp4`](media/final/dustlord-launch-x-landscape.mp4)
+
+The first public launch clip introduces Dust Lord as a physical household agent: a Roborock S6 MaxV with memory, state transitions, a voice in the room, and a mythological problem with crumbs.
+
+## Creator / links
+
+- Created by **Andreas H** with Ada Inc weirdness.
+- LinkedIn: <https://www.linkedin.com/in/andreas-hillborgh-51581371/>
+- Launch framing: `@NousResearch` / Hermes in the loop.
+
 ## Why this exists
 
 Robot vacuums already have APIs, sensors, state transitions, and physical presence. This project adds an agentic persona layer on top:
 
 ```text
-robot status/events → watcher → scenario → voice library → TTS → local HTTP → smart speaker
+robot status/events → watcher → scenario → behavior engine → voice library → TTS → local HTTP → smart speaker
 ```
 
 The Roborock onboard speaker stays muted. No firmware flashing is required for the current approach.
@@ -21,9 +33,11 @@ The Roborock onboard speaker stays muted. No firmware flashing is required for t
 - Roborock body control: working locally
 - Lord Dusk TTS/Cast voice: working locally
 - Watcher daemon: working on macOS launchd
-- CLI: v0.2 operational
+- CLI: v0.3 operational baseline
+- Behavior engine: mood, memory, rarity, safe-silence, mission hooks
 - Voice library: 16 scenarios / 111 lines
-- Public repo status: local GitHub-ready skeleton, not yet published
+- Demo video: included under `media/final/`
+- Public repo status: GitHub-ready local skeleton, pending final publish decision
 
 ## CLI
 
@@ -37,14 +51,37 @@ bin/dustlord last -n 3
 bin/dustlord report
 bin/dustlord library list
 bin/dustlord library validate
+bin/dustlord behavior status
 ```
+
+## Quick local setup
+
+1. Copy the example config:
+   ```bash
+   cp .env.example .env
+   ```
+2. Edit `.env` with your local Roborock RPC helper, Cast target, and TTS settings.
+3. Keep real tokens, local keys, device IDs, home maps, logs, and generated audio out of Git.
+4. Validate the voice library:
+   ```bash
+   DUSTLORD_HOME="$PWD" \
+   DUSTLORD_VOICE_LIBRARY="$PWD/data/lord-dusk-voice-library.json" \
+   bin/dustlord library validate --json
+   ```
+5. Test the persona without moving the robot:
+   ```bash
+   DUSTLORD_HOME="$PWD" \
+   DUSTLORD_VOICE_LIBRARY="$PWD/data/lord-dusk-voice-library.json" \
+   python3 scripts/dustlord_say.py --scenario manual_summon --dry-run
+   ```
 
 ## Safety model
 
 - Starting a vacuum has physical side effects. Do not run movement commands unless requested.
 - Keep the onboard robot speaker muted if using the external persona layer.
-- Do not commit Roborock tokens, local keys, account caches, device IDs, or private home maps.
+- Do not commit Roborock tokens, local keys, account caches, device IDs, private home maps, or camera/security data.
 - Treat camera/home-security features as out of scope unless explicitly authorized.
+- Review demo media before publishing; avoid addresses, screens, family photos, QR codes, app screens, and other private details.
 
 ## Architecture
 
@@ -53,7 +90,7 @@ Hermes / user
   ↓
 dustlord CLI
   ├─ Roborock RPC → vacuum body
-  └─ watcher/say → edge-tts → local HTTP → Nest Audio / Cast
+  └─ watcher/say → behavior engine → edge-tts → local HTTP → Nest Audio / Cast
 ```
 
 ## Repository layout
@@ -62,16 +99,19 @@ dustlord CLI
 bin/dustlord                         # operator CLI
 scripts/dustlord_watch.py             # state transition watcher
 scripts/dustlord_say.py               # TTS + Cast voice path
+scripts/dustlord_behavior.py          # persona behavior/memory/rarity layer
 data/lord-dusk-voice-library.json     # persona line library
 docs/ROADMAP.md                       # project roadmap
 docs/OPERATIONS.md                    # local operations guide
 docs/PUBLICATION_CHECKLIST.md         # before publishing to GitHub
+docs/DUST_LORD_VIDEO_PROJECT.md       # launch-video idea, shoot list, editing workflow
+media/final/dustlord-launch-x-landscape.mp4
 .env.example                          # local config template
 ```
 
-## Install notes
+## Notes
 
-This is currently a macOS/Hermes-tailored project. The public-friendly next step is replacing local hardcoded paths in scripts with config/env loading everywhere. See `docs/ROADMAP.md`.
+This is currently a macOS/Hermes-tailored project. Public hardening focuses on config/env loading, mocked tests, launchd setup docs, and safer installation scripts.
 
 ## License
 

@@ -13,6 +13,13 @@ state/
 *.pid
 *.mp3
 
+# Media workflow
+# Keep reviewed final demo clips if explicitly added, but do not publish raw phone dumps.
+media/raw/
+media/video-project/
+media/**/*.mov
+media/**/*.MOV
+
 # Local secrets/config
 .env
 .env.*

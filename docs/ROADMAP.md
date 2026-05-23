@@ -12,12 +12,15 @@
 
 ## v0.3 — Public hardening
 
-- [ ] Replace local hardcoded paths with config/env loading in every script
+- [x] Behavior engine copied into public repo skeleton
+- [x] Creator/contact link added
+- [x] Reviewed demo video included under `media/final/`
+- [x] Public README with quick setup, safety model, and architecture
+- [x] Publication checklist updated
 - [ ] Add install script for macOS launchd
 - [ ] Add uninstall/stop/restart daemon commands
 - [ ] Add typed config schema
 - [ ] Add mocked tests for CLI parsing/log parsing/library validation
-- [ ] Add screenshots/demo GIF/video
 
 ## v0.4 — Persona engine
 
