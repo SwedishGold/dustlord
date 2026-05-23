@@ -37,7 +37,7 @@ The Roborock onboard speaker stays muted. No firmware flashing is required for t
 - Behavior engine: mood, memory, rarity, safe-silence, mission hooks
 - Voice library: 16 scenarios / 111 lines
 - Demo video: included under `media/final/`
-- Public repo status: GitHub-ready local skeleton, pending final publish decision
+- Public repo: <https://github.com/SwedishGold/dustlord>
 
 ## CLI
 
@@ -56,19 +56,31 @@ bin/dustlord behavior status
 
 ## Quick local setup
 
-1. Copy the example config:
+For the full beginner-friendly path from installing Hermes Agent to wiring Dust Lord, see:
+
+[`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md)
+
+Short version:
+
+1. Install Hermes Agent if you want the same agent/operator layer used in the launch workflow:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
+   hermes setup
+   hermes doctor
+   ```
+2. Copy the example config:
    ```bash
    cp .env.example .env
    ```
-2. Edit `.env` with your local Roborock RPC helper, Cast target, and TTS settings.
-3. Keep real tokens, local keys, device IDs, home maps, logs, and generated audio out of Git.
-4. Validate the voice library:
+3. Edit `.env` with your local Roborock RPC helper, Cast target, and TTS settings.
+4. Keep real tokens, local keys, device IDs, home maps, logs, and generated audio out of Git.
+5. Validate the voice library:
    ```bash
    DUSTLORD_HOME="$PWD" \
    DUSTLORD_VOICE_LIBRARY="$PWD/data/lord-dusk-voice-library.json" \
    bin/dustlord library validate --json
    ```
-5. Test the persona without moving the robot:
+6. Test the persona without moving the robot:
    ```bash
    DUSTLORD_HOME="$PWD" \
    DUSTLORD_VOICE_LIBRARY="$PWD/data/lord-dusk-voice-library.json" \
